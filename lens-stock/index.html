@@ -1,0 +1,919 @@
+<title>Lens Stock Book</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a counter-side tool. Sticky header + tab bar, one working panel per tab; the stock view is the optician's SPH x CYL chart. */
+:root{
+  --bg:#EDF1F2; --surface:#FFFFFF; --sunk:#E3E9EB; --ink:#12212A; --muted:#5B6C76; --line:#D2DBDF;
+  --accent:#0B6A86; --accent-ink:#FFFFFF; --accent-soft:#D9EEF4;
+  --good:#1D7A4C; --good-soft:#DDF1E6; --warn:#A86200; --warn-soft:#FBEBD2; --bad:#B42318; --bad-soft:#FBE1DE;
+  --zero:#AEBBC1;
+  --f-ui:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C1418; --surface:#142027; --sunk:#0F191E; --ink:#E3ECEF; --muted:#8EA1AB; --line:#24343D;
+  --accent:#55B6D2; --accent-ink:#04212A; --accent-soft:#163A46;
+  --good:#5FC892; --good-soft:#163A2A; --warn:#E8A646; --warn-soft:#3D2C12; --bad:#F2806F; --bad-soft:#42201C;
+  --zero:#3E515B; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0C1418; --surface:#142027; --sunk:#0F191E; --ink:#E3ECEF; --muted:#8EA1AB; --line:#24343D;
+  --accent:#55B6D2; --accent-ink:#04212A; --accent-soft:#163A46;
+  --good:#5FC892; --good-soft:#163A2A; --warn:#E8A646; --warn-soft:#3D2C12; --bad:#F2806F; --bad-soft:#42201C;
+  --zero:#3E515B; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block:10px}
+.logo{display:flex;align-items:baseline;gap:8px;margin-right:auto}
+.logo b{font-size:18px;font-weight:800;letter-spacing:-.01em}
+.logo span{font-family:var(--f-num);font-size:11px;color:var(--muted)}
+.sync{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--zero);display:inline-block}
+.sync.ok i{background:var(--good)} .sync.slow i{background:var(--warn)} .sync.off i{background:var(--bad)}
+.staff{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.staff input{width:120px;padding:6px 8px}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs a{flex:none;padding:10px 12px;color:var(--muted);text-decoration:none;font-weight:600;font-size:14px;border-bottom:2px solid transparent}
+nav.tabs a[aria-current="page"]{color:var(--accent);border-bottom-color:var(--accent)}
+nav.tabs a:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+main{padding-block:18px 60px}
+section.view{display:flex;flex-direction:column;gap:16px}
+h1{font-size:22px;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:16px;margin:0}
+p{margin:0}
+.lead{color:var(--muted);max-width:65ch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.row > *{min-width:0}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+input,select,textarea{font:inherit;font-size:15px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:9px 10px;text-transform:none;letter-spacing:normal;font-weight:500}
+select.pw,input.num{font-family:var(--f-num)}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+textarea{min-height:90px;resize:vertical;width:100%}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);font-weight:500}
+.chk input{width:18px;height:18px;accent-color:var(--accent)}
+button{font:inherit;font-weight:700;font-size:14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);padding:12px 18px;font-size:15px}
+button.danger{color:var(--bad);border-color:var(--bad)}
+button.small{padding:5px 9px;font-size:12px}
+button:disabled{opacity:.5;cursor:not-allowed}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border-radius:999px;padding:7px 12px;font-size:13px}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-family:var(--f-num);font-size:22px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.stat.warn b{color:var(--warn)} .stat.bad b{color:var(--bad)}
+@media (max-width:560px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.note{border-radius:9px;padding:10px 12px;font-size:14px;border:1px solid}
+.note.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--ink)}
+.note.bad{background:var(--bad-soft);border-color:var(--bad);color:var(--ink)}
+.note.good{background:var(--good-soft);border-color:var(--good);color:var(--ink)}
+.note.info{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.note b{font-weight:800}
+.scroll{overflow:auto;max-width:100%;border:1px solid var(--line);border-radius:10px;background:var(--surface);max-height:70vh}
+table.grid{border-collapse:separate;border-spacing:0;font-family:var(--f-num);font-size:13px;font-variant-numeric:tabular-nums}
+table.grid th,table.grid td{padding:0;border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center}
+table.grid thead th{position:sticky;top:0;z-index:2;background:var(--sunk);padding:7px 6px;font-weight:600;min-width:52px}
+table.grid tbody th{position:sticky;left:0;z-index:1;background:var(--sunk);padding:0 10px;font-weight:600;text-align:right;white-space:nowrap}
+table.grid thead th.corner{left:0;z-index:3;font-family:var(--f-ui);font-size:11px;color:var(--muted);text-align:right}
+table.grid tr.plano th{color:var(--accent)}
+.cell{width:100%;min-width:52px;height:34px;border:0;border-radius:0;background:transparent;font-family:var(--f-num);font-size:14px;padding:0;color:var(--ink)}
+.cell.z{color:var(--zero);font-weight:400}
+.cell.low{background:var(--warn-soft);color:var(--warn)}
+.cell.neg{background:var(--bad-soft);color:var(--bad)}
+.cell:hover{outline:2px solid var(--accent);outline-offset:-2px}
+.ci{width:52px;height:34px;border:0;border-radius:0;text-align:center;font-family:var(--f-num);padding:0;background:transparent}
+.ci.filled{background:var(--accent-soft)}
+.eyes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:620px){.eyes{grid-template-columns:1fr}}
+fieldset.eye{border:1px solid var(--line);border-radius:10px;padding:12px;margin:0;display:flex;flex-direction:column;gap:10px;min-width:0}
+fieldset.eye legend{padding:0 6px;font-weight:800}
+fieldset.eye[disabled]{opacity:.5}
+.hint{font-size:13px;color:var(--muted);font-family:var(--f-num)}
+.hint.low{color:var(--warn)} .hint.neg{color:var(--bad)}
+.list{display:flex;flex-direction:column}
+.item{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item .t{font-size:12px;color:var(--muted);font-family:var(--f-num);white-space:nowrap}
+.item .d{min-width:0;overflow-wrap:anywhere}
+.item .q{font-family:var(--f-num);font-weight:700;text-align:right}
+.item.rev{opacity:.5}
+.item.rev .d{text-decoration:line-through}
+.pw{font-family:var(--f-num)}
+.badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px;margin-right:6px;vertical-align:1px}
+.b-out{background:var(--bad-soft);color:var(--bad)} .b-in{background:var(--good-soft);color:var(--good)}
+.b-adjust{background:var(--sunk);color:var(--muted)} .b-count{background:var(--accent-soft);color:var(--accent)}
+.muted{color:var(--muted)}
+.empty{color:var(--muted);padding:12px 0;font-size:14px}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th,.tbl td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+.tbl td.n,.tbl th.n{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto}
+.tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.tips .panel{gap:6px}
+.tips h3{margin:0;font-size:14px}
+.tips p{font-size:14px;color:var(--muted)}
+#sheet{position:fixed;inset:0;z-index:20;background:rgba(6,14,18,.45);display:flex;align-items:flex-end;justify-content:center}
+#sheet .card{background:var(--surface);width:100%;max-width:520px;border-radius:14px 14px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:12px;max-height:85vh;overflow:auto}
+.bigq{font-family:var(--f-num);font-size:40px;font-weight:600;line-height:1}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:9px;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 6px 24px rgba(0,0,0,.2)}
+@media (prefers-reduced-motion:no-preference){#toast{transition:opacity .2s}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="bar">
+      <div class="logo"><b>Lens Stock Book</b><span>SPH × CYL</span></div>
+      <span class="sync" id="sync"><i></i><span id="sync-t">Connecting…</span></span>
+      <label class="staff" for="staff">Staff <input id="staff" placeholder="Your name" autocomplete="off"></label>
+    </div>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#stock" data-v="stock">Stock</a>
+      <a href="#take-out" data-v="take-out">Take out</a>
+      <a href="#receive" data-v="receive">Receive</a>
+      <a href="#count" data-v="count">Count</a>
+      <a href="#day-check" data-v="day-check">Day check</a>
+      <a href="#history" data-v="history">History</a>
+      <a href="#setup" data-v="setup">Setup</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- STOCK -->
+<section class="view" id="v-stock">
+  <div id="reminder"></div>
+  <div class="chips" id="s-brands" role="group" aria-label="Lens"></div>
+  <div class="stats" id="s-stats"></div>
+  <div class="row" style="justify-content:space-between;align-items:center">
+    <label class="chk"><input type="checkbox" id="s-hide"> Hide powers with no stock</label>
+    <span class="muted" style="font-size:13px">Tap a power to take out or receive</span>
+  </div>
+  <div class="scroll" id="s-grid"></div>
+  <div class="tips" id="howto">
+    <div class="panel"><h3>Every lens out gets a job number</h3><p>Use <b>Take out</b> the moment you pull a lens from the drawer, before fitting. The job or receipt number links the lens to a sale.</p></div>
+    <div class="panel"><h3>Keep the empty lens packet</h3><p>Clip the empty packet to the job card. Only throw it away after the take-out is keyed in. A packet in the tray means not keyed in yet.</p></div>
+    <div class="panel"><h3>Close each day</h3><p><b>Day check</b> compares the receipt book with what was keyed in and lists any job that took a lens but was never deducted.</p></div>
+    <div class="panel"><h3>Count blind, one lens type a week</h3><p>Count without looking at the system number. Differences are saved so you can see which lens type keeps going missing.</p></div>
+  </div>
+</section>
+
+<!-- TAKE OUT -->
+<section class="view" id="v-take-out" hidden>
+  <div><h1>Take out for a job</h1><p class="lead">Key in each lens as you pull it from the drawer. Both eyes in one go.</p></div>
+  <form class="panel" id="f-out" novalidate>
+    <div class="row">
+      <label class="f" for="o-job" style="flex:1 1 180px">Job / receipt no.<input id="o-job" autocomplete="off" placeholder="e.g. 10452"></label>
+      <label class="f" for="o-brand" style="flex:2 1 220px">Lens<select id="o-brand" class="brand-sel"></select></label>
+    </div>
+    <div class="eyes">
+      <fieldset class="eye" id="o-r">
+        <legend><label class="chk"><input type="checkbox" id="o-r-on" checked> Right eye (R)</label></legend>
+        <div class="row">
+          <label class="f" for="o-r-sph" style="flex:1">SPH<select id="o-r-sph" class="pw sph-sel"></select></label>
+          <label class="f" for="o-r-cyl" style="flex:1">CYL<select id="o-r-cyl" class="pw cyl-sel"></select></label>
+        </div>
+        <span class="hint" id="o-r-hint"></span>
+      </fieldset>
+      <fieldset class="eye" id="o-l">
+        <legend><label class="chk"><input type="checkbox" id="o-l-on" checked> Left eye (L)</label></legend>
+        <div class="row">
+          <label class="f" for="o-l-sph" style="flex:1">SPH<select id="o-l-sph" class="pw sph-sel"></select></label>
+          <label class="f" for="o-l-cyl" style="flex:1">CYL<select id="o-l-cyl" class="pw cyl-sel"></select></label>
+        </div>
+        <span class="hint" id="o-l-hint"></span>
+      </fieldset>
+    </div>
+    <div class="row"><button type="button" id="o-copy">Copy R power to L</button></div>
+    <div id="o-warn" hidden></div>
+    <div id="o-msg"></div>
+    <div class="row"><button type="submit" class="primary" id="o-go">Take out and deduct</button></div>
+  </form>
+  <div class="panel"><h2>Today's take-outs</h2><div class="list" id="o-today"></div></div>
+</section>
+
+<!-- RECEIVE -->
+<section class="view" id="v-receive" hidden>
+  <div><h1>Receive stock</h1><p class="lead">Key in lenses from the supplier when you unpack them, before they go into the drawer.</p></div>
+  <form class="panel" id="f-in" novalidate>
+    <div class="row">
+      <label class="f" for="i-brand" style="flex:2 1 220px">Lens<select id="i-brand" class="brand-sel"></select></label>
+      <label class="f" for="i-ref" style="flex:1 1 160px">Supplier DO / invoice<input id="i-ref" autocomplete="off" placeholder="optional"></label>
+    </div>
+    <div class="row">
+      <label class="f" for="i-sph" style="flex:1 1 110px">SPH<select id="i-sph" class="pw sph-sel"></select></label>
+      <label class="f" for="i-cyl" style="flex:1 1 110px">CYL<select id="i-cyl" class="pw cyl-sel"></select></label>
+      <label class="f" for="i-qty" style="flex:0 1 90px">Pieces<input id="i-qty" class="num" type="number" min="1" max="200" value="2" inputmode="numeric"></label>
+    </div>
+    <span class="hint" id="i-hint"></span>
+    <div id="i-msg"></div>
+    <div class="row"><button type="submit" class="primary">Add to stock</button></div>
+  </form>
+  <div class="panel"><h2>Recently received</h2><div class="list" id="i-recent"></div></div>
+</section>
+
+<!-- COUNT -->
+<section class="view" id="v-count" hidden>
+  <div><h1>Stock count</h1><p class="lead">Count what is physically in the drawer and type it into the chart. Use this for your opening stock too. Your typing is kept on this device until you save.</p></div>
+  <div class="panel">
+    <div class="row">
+      <label class="f" for="c-brand" style="flex:1 1 240px">Lens<select id="c-brand" class="brand-sel"></select></label>
+    </div>
+    <label class="chk"><input type="checkbox" id="c-full" checked> Full count: a blank box means 0 pieces</label>
+    <label class="chk"><input type="checkbox" id="c-show"> Show system quantity (leave off for a blind count)</label>
+  </div>
+  <div class="scroll" id="c-grid"></div>
+  <div class="row">
+    <button type="button" class="primary" id="c-review">Review differences</button>
+    <button type="button" id="c-clear">Clear what I typed</button>
+  </div>
+  <div id="c-result"></div>
+</section>
+
+<!-- DAY CHECK -->
+<section class="view" id="v-day-check" hidden>
+  <div><h1>Day check</h1><p class="lead">At closing, list every job from the receipt book that used a stock lens. Anything missing here was taken from the drawer but never deducted.</p></div>
+  <div class="panel">
+    <div class="row"><label class="f" for="d-date">Date<input type="date" id="d-date"></label></div>
+    <div id="d-logged"></div>
+  </div>
+  <div class="panel">
+    <label class="f" for="d-book">Job numbers from receipt book (stock-lens jobs only)<textarea id="d-book" class="num" placeholder="10450 10451 10455"></textarea></label>
+    <div id="d-result"></div>
+    <div class="row">
+      <button type="button" class="primary" id="d-save">Save day check</button>
+      <button type="button" id="d-closed">Shop closed this day</button>
+    </div>
+    <div id="d-msg"></div>
+  </div>
+  <div class="panel"><h2>Recent day checks</h2><div class="list" id="d-recent"></div></div>
+</section>
+
+<!-- HISTORY -->
+<section class="view" id="v-history" hidden>
+  <div><h1>History</h1><p class="lead">Every take-out, receive, reversal and count. Wrong entries are reversed, never deleted, so the trail stays complete.</p></div>
+  <div class="panel"><h2>Count differences, last 90 days</h2><div id="h-var"></div></div>
+  <div class="panel">
+    <div class="row">
+      <label class="f" for="h-brand" style="flex:1 1 180px">Lens<select id="h-brand"></select></label>
+      <label class="f" for="h-type" style="flex:1 1 140px">Type<select id="h-type">
+        <option value="">All</option><option value="out">Take out</option><option value="in">Receive</option><option value="adjust">Reversal</option><option value="count">Count</option>
+      </select></label>
+      <label class="f" for="h-q" style="flex:1 1 160px">Job, staff or power<input id="h-q" autocomplete="off" placeholder="Search"></label>
+    </div>
+    <div class="list" id="h-list"></div>
+  </div>
+</section>
+
+<!-- SETUP -->
+<section class="view" id="v-setup" hidden>
+  <div><h1>Setup</h1><p class="lead">Lens types and the power range shown on the chart. Changes apply to everyone using this page.</p></div>
+  <div class="panel">
+    <h2>Lens types</h2>
+    <div id="st-brands" class="list"></div>
+    <div class="row">
+      <label class="f" for="st-new" style="flex:1 1 240px">Add lens type<input id="st-new" placeholder="e.g. 1.67 Blue Cut" autocomplete="off"></label>
+      <button type="button" id="st-add">Add</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Chart range</h2>
+    <div class="row">
+      <label class="f" for="st-smax">Highest SPH<select id="st-smax" class="pw"></select></label>
+      <label class="f" for="st-smin">Lowest SPH<select id="st-smin" class="pw"></select></label>
+      <label class="f" for="st-cmin">Highest CYL<select id="st-cmin" class="pw"></select></label>
+      <label class="f" for="st-low">Low stock at<input id="st-low" class="num" type="number" min="0" max="20" style="width:90px"></label>
+    </div>
+  </div>
+  <div class="row"><button type="button" class="primary" id="st-save">Save setup</button></div>
+  <div id="st-msg"></div>
+  <div class="panel">
+    <h2>Backup</h2>
+    <p class="muted">Download a spreadsheet copy for your records or the accountant.</p>
+    <div class="row"><button type="button" id="ex-stock">Download stock (CSV)</button><button type="button" id="ex-hist">Download history (CSV)</button></div>
+    <div id="ex-msg"></div>
+  </div>
+</section>
+
+</main>
+
+<div id="sheet" hidden><div class="card" role="dialog" aria-modal="true" aria-labelledby="sh-title" id="sh-card"></div></div>
+<div id="toast" hidden></div>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LS = {
+  get(k, d){ try { const v = localStorage.getItem('lsb:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem('lsb:' + k, JSON.stringify(v)); } catch {} }
+};
+const DEFAULTS = {
+  brands: [
+    {id:'dualsafe156', name:'1.56 Dual Safe'},
+    {id:'stellify156', name:'1.56 Stellify HVP BC'},
+    {id:'oriental156', name:'1.56 Oriental'},
+    {id:'shaming160', name:'1.60 Shaming UV420'}
+  ],
+  sphMax: 400, sphMin: -800, cylMin: -200, low: 1
+};
+const S = {
+  db: null, dl: null, settings: structuredClone(DEFAULTS),
+  stock: {}, stockDocs: new Set(), moves: [], counts: [], closes: {}, dayMoves: [],
+  ready: false, brand: LS.get('brand', null), chain: Promise.resolve(),
+  dayUnsub: null, outConfirmed: false, readonly: false
+};
+const VIEWS = ['stock','take-out','receive','count','day-check','history','setup'];
+
+/* ---------- helpers ---------- */
+const fmt = h => (h > 0 ? '+' : '') + (h / 100).toFixed(2);
+const key = (s, c) => `s${s}c${c}`;
+const parseKey = k => { const m = /^s(-?\d+)c(-?\d+)$/.exec(k); return m ? [+m[1], +m[2]] : null; };
+const brands = () => S.settings.brands.filter(b => !b.hidden);
+const bname = id => (S.settings.brands.find(b => b.id === id) || {}).name || id;
+const sphs = () => { const a = []; for (let h = S.settings.sphMax; h >= S.settings.sphMin; h -= 25) a.push(h); return a; };
+const cyls = () => { const a = []; for (let c = 0; c >= S.settings.cylMin; c -= 25) a.push(c); return a; };
+const qty = (b, s, c) => (S.stock[b] || {})[key(s, c)] ?? 0;
+const ymd = (d = new Date()) => { const z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; };
+const prettyDate = d => new Date(d + 'T00:00').toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short'});
+const timeOf = at => new Date(at).toLocaleString(undefined, {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+const staff = () => $('#staff').value.trim();
+const normJob = j => String(j).trim().toUpperCase().replace(/^#/, '');
+const curBrand = () => { const bs = brands(); if (!bs.find(b => b.id === S.brand)) S.brand = bs[0]?.id || null; return S.brand; };
+
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, 3800);
+}
+function note(el, kind, html){ el.innerHTML = html ? `<div class="note ${kind}">${html}</div>` : ''; }
+function errText(e){
+  if (e && e.code === 'invalid_argument') return 'This account can only view the stock. Ask the owner to share the page with you as a Contributor.';
+  if (e && e.code === 'quota_exceeded') return 'The stock book is full. Download a history backup and ask for old records to be cleared.';
+  return 'Could not save (' + esc(e?.message || e?.code || 'unknown error') + '). Check the connection and try again.';
+}
+function setSync(state, text){ const el = $('#sync'); el.className = 'sync ' + state; $('#sync-t').textContent = text; }
+function needDb(el){
+  if (S.db) return true;
+  note(el, 'bad', 'Not connected to the shared stock. Open this page in claude.ai while signed in.');
+  return false;
+}
+function queue(fn){ const p = S.chain.then(fn); S.chain = p.catch(() => {}); return p; }
+
+/* writes */
+async function writePatch(brand, patch){
+  const ref = S.db.doc('stock/' + brand);
+  if (S.stockDocs.has(brand)) await ref.update({qty: patch, at: Date.now()});
+  else { await ref.set({qty: {...(S.stock[brand] || {}), ...patch}, at: Date.now()}); S.stockDocs.add(brand); }
+  S.stock[brand] = {...(S.stock[brand] || {}), ...patch};
+}
+async function applyDeltas(lines){
+  const by = {};
+  for (const l of lines){
+    const p = by[l.brand] ||= {};
+    const k = key(l.sph, l.cyl);
+    p[k] = (p[k] ?? qty(l.brand, l.sph, l.cyl)) + l.delta;
+  }
+  for (const b of Object.keys(by)) await writePatch(b, by[b]);
+}
+function moveDoc(o){
+  return {at: Date.now(), date: ymd(), staff: staff(), job: '', ref: '', note: '', eye: '', reversed: false, ...o};
+}
+
+/* ---------- static builders ---------- */
+function fillPowerSelects(){
+  const so = sphs().map(h => `<option value="${h}">${fmt(h)}</option>`).join('');
+  const co = cyls().map(c => `<option value="${c}">${c === 0 ? '0.00 (none)' : fmt(c)}</option>`).join('');
+  $$('.sph-sel').forEach(s => { const v = s.value || '0'; s.innerHTML = so; s.value = v; if (s.selectedIndex < 0) s.value = '0'; });
+  $$('.cyl-sel').forEach(s => { const v = s.value || '0'; s.innerHTML = co; s.value = v; if (s.selectedIndex < 0) s.value = '0'; });
+}
+function fillBrandSelects(){
+  const opts = brands().map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
+  $$('.brand-sel').forEach(s => { const v = s.value || curBrand(); s.innerHTML = opts; s.value = v; if (s.selectedIndex < 0) s.selectedIndex = 0; });
+  const hb = $('#h-brand'), hv = hb.value;
+  hb.innerHTML = '<option value="">All</option>' + S.settings.brands.map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
+  hb.value = hv;
+}
+function onSettings(){
+  fillBrandSelects(); fillPowerSelects(); renderSetup(); buildCountGrid(); renderLive();
+}
+
+/* ---------- routing ---------- */
+function route(){
+  let v = location.hash.slice(1);
+  if (!VIEWS.includes(v)) v = 'stock';
+  VIEWS.forEach(x => { $('#v-' + x).hidden = x !== v; });
+  $$('nav.tabs a').forEach(a => a.setAttribute('aria-current', a.dataset.v === v ? 'page' : 'false'));
+  S.view = v;
+  renderLive();
+}
+
+/* ---------- STOCK ---------- */
+function renderStock(){
+  const b = curBrand();
+  $('#s-brands').innerHTML = brands().map(x => `<button type="button" class="chip" data-b="${esc(x.id)}" aria-pressed="${x.id === b}">${esc(x.name)}</button>`).join('');
+  const st = S.stock[b] || {};
+  let pcs = 0, powers = 0, low = 0, neg = 0;
+  for (const s of sphs()) for (const c of cyls()){
+    const q = st[key(s, c)] ?? 0;
+    if (q > 0){ pcs += q; powers++; }
+    if (q < 0) neg++;
+    else if (q <= S.settings.low) low++;
+  }
+  const lastCount = S.counts.find(c => c.brand === b);
+  $('#s-stats').innerHTML = `
+    <div class="stat"><b>${pcs}</b><span>pieces in stock</span></div>
+    <div class="stat"><b>${powers}</b><span>powers stocked</span></div>
+    <div class="stat ${neg ? 'bad' : ''}"><b>${neg}</b><span>below zero (check)</span></div>
+    <div class="stat"><b style="font-size:15px;line-height:1.9">${lastCount ? esc(prettyDate(lastCount.date)) : 'Never'}</b><span>last counted</span></div>`;
+  const hide = $('#s-hide').checked;
+  const cs = cyls();
+  let rows = '';
+  for (const s of sphs()){
+    const vals = cs.map(c => st[key(s, c)] ?? 0);
+    if (hide && vals.every(v => v === 0)) continue;
+    rows += `<tr class="${s === 0 ? 'plano' : ''}"><th scope="row">${fmt(s)}</th>` + cs.map((c, i) => {
+      const q = vals[i];
+      const cls = q < 0 ? 'neg' : q === 0 ? 'z' : q <= S.settings.low ? 'low' : '';
+      return `<td><button type="button" class="cell ${cls}" data-s="${s}" data-c="${c}" aria-label="${fmt(s)} / ${fmt(c)}: ${q}">${q === 0 ? '·' : q}</button></td>`;
+    }).join('') + '</tr>';
+  }
+  $('#s-grid').innerHTML = !b ? '<p class="empty" style="padding:16px">Add a lens type in Setup.</p>' :
+    `<table class="grid"><thead><tr><th class="corner">SPH \\ CYL</th>${cs.map(c => `<th>${fmt(c)}</th>`).join('')}</tr></thead><tbody>${rows || `<tr><td colspan="${cs.length + 1}" class="empty" style="padding:16px;font-family:var(--f-ui)">No stock keyed in for this lens yet. Use Count to enter your opening stock.</td></tr>`}</tbody></table>`;
+  renderReminder();
+}
+function renderReminder(){
+  const el = $('#reminder');
+  if (!S.ready) { el.innerHTML = ''; return; }
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const yd = ymd(y);
+  const msgs = [];
+  if (!S.closes[yd]) msgs.push(`<div class="note warn"><b>Day check not done for ${esc(prettyDate(yd))}.</b> <a href="#day-check" data-date="${yd}">Do it now</a> so missed take-outs are caught while people still remember.</div>`);
+  const recentMiss = Object.values(S.closes).filter(c => (c.missing || []).length && c.date >= ymd(new Date(Date.now() - 7 * 864e5)));
+  if (recentMiss.length) msgs.push(`<div class="note bad"><b>${recentMiss.reduce((n, c) => n + c.missing.length, 0)} job(s) in the last 7 days used a lens that was never deducted:</b> ${recentMiss.map(c => esc(c.missing.join(', '))).join(', ')}. Key them in under Take out, then re-save that day check.</div>`);
+  el.innerHTML = msgs.join('');
+  el.style.display = msgs.length ? 'flex' : 'none';
+  el.style.flexDirection = 'column'; el.style.gap = '8px';
+}
+
+/* sheet */
+function openSheet(b, s, c){
+  const q = qty(b, s, c);
+  const hist = S.moves.filter(m => m.brand === b && m.sph === s && m.cyl === c).slice(0, 8);
+  $('#sh-card').innerHTML = `
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><p class="muted" style="font-size:13px">${esc(bname(b))}</p><h2 id="sh-title" class="pw" style="font-size:20px">${fmt(s)} / ${fmt(c)}</h2></div>
+      <button type="button" class="small" id="sh-x">Close</button>
+    </div>
+    <div><span class="bigq">${q}</span> <span class="muted">pcs in system</span></div>
+    ${q < 0 ? '<div class="note bad">Below zero. A receive was probably not keyed in, or a lens was deducted twice. Count this power.</div>' : ''}
+    <div class="row">
+      <button type="button" class="primary" id="sh-out">Take out for a job</button>
+      <button type="button" id="sh-in">Receive</button>
+    </div>
+    <h2 style="font-size:14px">Recent movements</h2>
+    <div class="list">${hist.length ? hist.map(moveRow).join('') : '<p class="empty">Nothing recorded for this power yet.</p>'}</div>`;
+  $('#sheet').hidden = false;
+  $('#sh-x').focus();
+  $('#sh-x').onclick = closeSheet;
+  $('#sh-out').onclick = () => { closeSheet(); $('#o-brand').value = b; $('#o-r-sph').value = s; $('#o-r-cyl').value = c; $('#o-l-on').checked = false; syncEyes(); location.hash = 'take-out'; $('#o-job').focus(); };
+  $('#sh-in').onclick = () => { closeSheet(); $('#i-brand').value = b; $('#i-sph').value = s; $('#i-cyl').value = c; location.hash = 'receive'; renderInHint(); };
+}
+function closeSheet(){ $('#sheet').hidden = true; }
+
+/* ---------- TAKE OUT ---------- */
+function eyeVal(e){ return {on: $(`#o-${e}-on`).checked, sph: +$(`#o-${e}-sph`).value, cyl: +$(`#o-${e}-cyl`).value}; }
+function syncEyes(){ ['r','l'].forEach(e => { $('#o-' + e).toggleAttribute('disabled', false); $$(`#o-${e} select`).forEach(x => x.disabled = !$(`#o-${e}-on`).checked); }); renderOutHints(); }
+function hintFor(el, b, s, c, after){
+  const q = qty(b, s, c);
+  el.className = 'hint ' + (q - after < 0 ? 'neg' : q - after <= S.settings.low ? 'low' : '');
+  el.textContent = `In stock: ${q}` + (after ? `  →  after: ${q - after}` : '');
+}
+function renderOutHints(){
+  const b = $('#o-brand').value; const r = eyeVal('r'), l = eyeVal('l');
+  const same = r.on && l.on && r.sph === l.sph && r.cyl === l.cyl;
+  r.on ? hintFor($('#o-r-hint'), b, r.sph, r.cyl, same ? 2 : 1) : ($('#o-r-hint').textContent = '');
+  l.on ? hintFor($('#o-l-hint'), b, l.sph, l.cyl, same ? 2 : 1) : ($('#o-l-hint').textContent = '');
+}
+function resetOutWarn(){ S.outConfirmed = false; $('#o-warn').hidden = true; $('#o-warn').innerHTML = ''; }
+async function submitOut(ev){
+  ev?.preventDefault();
+  const msg = $('#o-msg'); note(msg);
+  if (!needDb(msg)) return;
+  const job = normJob($('#o-job').value);
+  const b = $('#o-brand').value;
+  const eyes = [['R', eyeVal('r')], ['L', eyeVal('l')]].filter(([, v]) => v.on);
+  if (!staff()) return note(msg, 'bad', 'Type your name in the <b>Staff</b> box at the top first.');
+  if (!job) return note(msg, 'bad', 'Enter the job or receipt number. Every lens out must be linked to a sale.');
+  if (!eyes.length) return note(msg, 'bad', 'Tick at least one eye.');
+  const lines = eyes.map(([eye, v]) => ({brand: b, sph: v.sph, cyl: v.cyl, delta: -1, eye}));
+  if (!S.outConfirmed){
+    const warns = [];
+    const prev = S.moves.filter(m => m.type === 'out' && !m.reversed && normJob(m.job) === job);
+    if (prev.length) warns.push(`Job <b>${esc(job)}</b> already has ${prev.length} lens(es) taken out (${esc(prev.map(m => `${m.eye} ${fmt(m.sph)}/${fmt(m.cyl)}`).join(', '))}, ${esc(prettyDate(prev[0].date))}). Is this a remake or a second pair?`);
+    const need = {};
+    lines.forEach(l => { const k = key(l.sph, l.cyl); need[k] = (need[k] || 0) + 1; });
+    for (const [k, n] of Object.entries(need)){
+      const [s, c] = parseKey(k); const q = qty(b, s, c);
+      if (q - n < 0) warns.push(`System shows only <b>${q}</b> of ${fmt(s)}/${fmt(c)}. If the lens really was in the drawer, a receive was missed. Please count this power later.`);
+    }
+    if (warns.length){
+      $('#o-warn').hidden = false;
+      $('#o-warn').innerHTML = `<div class="note warn" style="display:flex;flex-direction:column;gap:8px">${warns.map(w => `<p>${w}</p>`).join('')}<div class="row"><button type="button" class="small" id="o-yes">Yes, take out anyway</button></div></div>`;
+      $('#o-yes').onclick = () => { S.outConfirmed = true; submitOut(); };
+      return;
+    }
+  }
+  $('#o-go').disabled = true;
+  try {
+    await queue(async () => {
+      const before = lines.map(l => qty(l.brand, l.sph, l.cyl));
+      await applyDeltas(lines);
+      for (let i = 0; i < lines.length; i++){
+        const l = lines[i];
+        await S.db.collection('moves').add(moveDoc({type: 'out', brand: l.brand, sph: l.sph, cyl: l.cyl, eye: l.eye, delta: -1, job, sys: before[i]}));
+      }
+    });
+    toast(`Job ${job}: ${lines.length} lens${lines.length > 1 ? 'es' : ''} deducted`);
+    note(msg, 'good', `Saved. Job <b>${esc(job)}</b>: ${lines.map(l => `${l.eye} ${fmt(l.sph)}/${fmt(l.cyl)}, ${qty(l.brand, l.sph, l.cyl)} left`).join('; ')}. You can now throw away the empty packet${lines.length > 1 ? 's' : ''}.`);
+    $('#o-job').value = '';
+    resetOutWarn();
+  } catch (e) { note(msg, 'bad', errText(e)); }
+  finally { $('#o-go').disabled = false; renderOutHints(); }
+}
+function renderOutToday(){
+  const t = ymd();
+  const list = S.moves.filter(m => m.date === t && (m.type === 'out' || m.type === 'adjust'));
+  $('#o-today').innerHTML = list.length ? list.map(moveRow).join('') : '<p class="empty">Nothing taken out today yet.</p>';
+}
+
+/* ---------- RECEIVE ---------- */
+function renderInHint(){
+  const q = Math.max(0, parseInt($('#i-qty').value, 10) || 0);
+  const b = $('#i-brand').value, s = +$('#i-sph').value, c = +$('#i-cyl').value;
+  $('#i-hint').className = 'hint';
+  $('#i-hint').textContent = `In stock: ${qty(b, s, c)}  →  after: ${qty(b, s, c) + q}`;
+}
+async function submitIn(ev){
+  ev.preventDefault();
+  const msg = $('#i-msg'); note(msg);
+  if (!needDb(msg)) return;
+  if (!staff()) return note(msg, 'bad', 'Type your name in the <b>Staff</b> box at the top first.');
+  const n = parseInt($('#i-qty').value, 10);
+  if (!(n >= 1 && n <= 200)) return note(msg, 'bad', 'Pieces must be between 1 and 200.');
+  const b = $('#i-brand').value, s = +$('#i-sph').value, c = +$('#i-cyl').value, ref = $('#i-ref').value.trim();
+  try {
+    await queue(async () => {
+      const sys = qty(b, s, c);
+      await applyDeltas([{brand: b, sph: s, cyl: c, delta: n}]);
+      await S.db.collection('moves').add(moveDoc({type: 'in', brand: b, sph: s, cyl: c, delta: n, ref, sys}));
+    });
+    toast(`Added ${n} × ${fmt(s)}/${fmt(c)}`);
+    note(msg, 'good', `Added <b>${n}</b> × ${esc(bname(b))} ${fmt(s)}/${fmt(c)}. Now ${qty(b, s, c)} in stock.`);
+    renderInHint();
+  } catch (e) { note(msg, 'bad', errText(e)); }
+}
+function renderInRecent(){
+  const list = S.moves.filter(m => m.type === 'in').slice(0, 12);
+  $('#i-recent').innerHTML = list.length ? list.map(moveRow).join('') : '<p class="empty">No deliveries keyed in yet.</p>';
+}
+
+/* ---------- COUNT ---------- */
+function draftOf(b){ return LS.get('count:' + b, {}); }
+function buildCountGrid(){
+  const b = $('#c-brand').value; const el = $('#c-grid');
+  if (!b){ el.innerHTML = ''; return; }
+  const d = draftOf(b); const cs = cyls(); const show = $('#c-show').checked;
+  el.innerHTML = `<table class="grid"><thead><tr><th class="corner">SPH \\ CYL</th>${cs.map(c => `<th>${fmt(c)}</th>`).join('')}</tr></thead><tbody>` +
+    sphs().map(s => `<tr class="${s === 0 ? 'plano' : ''}"><th scope="row">${fmt(s)}</th>` + cs.map(c => {
+      const k = key(s, c); const v = d[k] ?? '';
+      return `<td><input class="ci${v !== '' ? ' filled' : ''}" inputmode="numeric" data-k="${k}" value="${esc(v)}" aria-label="Count ${fmt(s)} / ${fmt(c)}" placeholder="${show ? qty(b, s, c) : ''}"></td>`;
+    }).join('') + '</tr>').join('') + '</tbody></table>';
+  $('#c-result').innerHTML = '';
+}
+function refreshCountPlaceholders(){
+  if (!$('#c-show').checked) return;
+  const b = $('#c-brand').value;
+  $$('#c-grid .ci').forEach(i => { const [s, c] = parseKey(i.dataset.k); i.placeholder = qty(b, s, c); });
+}
+function countDiffs(){
+  const b = $('#c-brand').value; const d = draftOf(b); const full = $('#c-full').checked;
+  const diffs = []; let counted = 0;
+  for (const s of sphs()) for (const c of cyls()){
+    const k = key(s, c); const raw = d[k];
+    let cnt;
+    if (raw !== undefined && raw !== '') cnt = parseInt(raw, 10);
+    else if (full) cnt = 0;
+    else continue;
+    if (!Number.isFinite(cnt) || cnt < 0) return {error: `The box for ${fmt(s)}/${fmt(c)} is not a whole number.`};
+    counted++;
+    const sys = qty(b, s, c);
+    if (cnt !== sys) diffs.push({s, c, sys, cnt});
+  }
+  return {b, diffs, counted, full};
+}
+function reviewCount(){
+  const out = $('#c-result');
+  const r = countDiffs();
+  if (r.error) return note(out, 'bad', esc(r.error));
+  if (!r.counted) return note(out, 'warn', 'Nothing typed yet. Type the number of pieces in each box, or tick Full count.');
+  const missing = r.diffs.filter(x => x.cnt < x.sys).reduce((n, x) => n + x.sys - x.cnt, 0);
+  const extra = r.diffs.filter(x => x.cnt > x.sys).reduce((n, x) => n + x.cnt - x.sys, 0);
+  const opening = !S.stockDocs.has(r.b);
+  out.innerHTML = `<div class="panel">
+    <h2>${opening ? 'Opening stock' : 'Count result'}: ${esc(bname(r.b))}</h2>
+    ${opening ? `<p class="muted">This is the first count for this lens. It becomes the starting stock.</p>` :
+      r.diffs.length ? `<div class="note ${missing ? 'bad' : 'warn'}"><b>${r.diffs.length}</b> power(s) differ. Short <b>${missing}</b> pcs, extra <b>${extra}</b> pcs. Before saving, check the job tray and unkeyed packets for the short ones.</div>` :
+      `<div class="note good">All <b>${r.counted}</b> counted powers match the system.</div>`}
+    ${r.diffs.length && !opening ? `<div class="tablewrap"><table class="tbl"><thead><tr><th>Power</th><th class="n">System</th><th class="n">Counted</th><th class="n">Difference</th></tr></thead><tbody>${
+      r.diffs.map(x => `<tr><td class="pw">${fmt(x.s)} / ${fmt(x.c)}</td><td class="n">${x.sys}</td><td class="n">${x.cnt}</td><td class="n" style="color:var(${x.cnt < x.sys ? '--bad' : '--warn'})">${x.cnt - x.sys > 0 ? '+' : ''}${x.cnt - x.sys}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    <div class="row"><button type="button" class="primary" id="c-save">${opening ? 'Save opening stock' : 'Save count and correct stock'}</button></div>
+    <div id="c-msg"></div></div>`;
+  $('#c-save').onclick = () => saveCount(opening);
+}
+async function saveCount(opening){
+  const msg = $('#c-msg');
+  if (!needDb(msg)) return;
+  if (!staff()) return note(msg, 'bad', 'Type your name in the <b>Staff</b> box at the top first.');
+  const r = countDiffs(); if (r.error) return note(msg, 'bad', esc(r.error));
+  $('#c-save').disabled = true;
+  try {
+    await queue(async () => {
+      const patch = {};
+      r.diffs.forEach(x => { patch[key(x.s, x.c)] = x.cnt; });
+      if (Object.keys(patch).length || !S.stockDocs.has(r.b)) await writePatch(r.b, patch);
+      const missing = r.diffs.filter(x => x.cnt < x.sys).reduce((n, x) => n + x.sys - x.cnt, 0);
+      const extra = r.diffs.filter(x => x.cnt > x.sys).reduce((n, x) => n + x.cnt - x.sys, 0);
+      await S.db.collection('counts').add({at: Date.now(), date: ymd(), brand: r.b, staff: staff(), full: r.full, counted: r.counted, opening, missing, extra, diffs: r.diffs});
+    });
+    LS.set('count:' + r.b, {});
+    buildCountGrid();
+    note($('#c-result'), 'good', `Count saved for <b>${esc(bname(r.b))}</b>. Stock now matches the drawer.`);
+    toast('Count saved');
+  } catch (e) { note(msg, 'bad', errText(e)); $('#c-save').disabled = false; }
+}
+
+/* ---------- DAY CHECK ---------- */
+function subscribeDay(){
+  if (!S.db) return;
+  if (S.dayUnsub) S.dayUnsub();
+  const d = $('#d-date').value;
+  S.dayMoves = []; renderDay();
+  S.dayUnsub = S.db.collection('moves').where('date', '==', d).onSnapshot(q => {
+    S.dayMoves = q.docs.map(x => ({id: x.id, ...x.data()})); renderDay();
+  }, () => {});
+  const c = S.closes[d];
+  $('#d-book').value = c && !c.closed ? (c.book || []).join(' ') : '';
+}
+function dayJobs(){
+  const jobs = {};
+  S.dayMoves.filter(m => m.type === 'out' && !m.reversed).forEach(m => { (jobs[normJob(m.job)] ||= []).push(m); });
+  return jobs;
+}
+function parseBook(){ return [...new Set($('#d-book').value.split(/[\s,;]+/).map(normJob).filter(Boolean))]; }
+function renderDay(){
+  const d = $('#d-date').value; const jobs = dayJobs(); const keys = Object.keys(jobs).sort();
+  const pcs = keys.reduce((n, k) => n + jobs[k].length, 0);
+  $('#d-logged').innerHTML = `<h2>Keyed in on ${esc(prettyDate(d))}: ${keys.length} job(s), ${pcs} lens(es)</h2>` +
+    (keys.length ? `<div class="tablewrap"><table class="tbl"><thead><tr><th>Job</th><th>Lenses</th><th>Staff</th></tr></thead><tbody>${keys.map(k => `<tr><td class="pw"><b>${esc(k)}</b></td><td>${jobs[k].map(m => `${esc(m.eye)} <span class="pw">${fmt(m.sph)}/${fmt(m.cyl)}</span> <span class="muted">${esc(bname(m.brand))}</span>`).join('<br>')}</td><td>${esc([...new Set(jobs[k].map(m => m.staff))].join(', '))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">No take-outs keyed in for this day.</p>');
+  compareDay();
+  const c = S.closes[d];
+  $('#d-recent').innerHTML = Object.values(S.closes).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 14).map(c => `
+    <div class="item"><span class="t">${esc(prettyDate(c.date))}</span>
+    <span class="d">${c.closed ? 'Shop closed' : (c.missing || []).length ? `<span class="badge b-out">Missing</span>${esc(c.missing.join(', '))}` : `<span class="badge b-in">OK</span>${(c.book || []).length} job(s) match`}${(c.extra || []).length ? ` <span class="muted">· not in book: ${esc(c.extra.join(', '))}</span>` : ''}</span>
+    <span class="t">${esc(c.staff || '')}</span></div>`).join('') || '<p class="empty">No day checks saved yet.</p>';
+  if (c) note($('#d-msg'), 'info', c.closed ? `Marked as shop closed by ${esc(c.staff)}.` : `Saved by ${esc(c.staff)} at ${esc(timeOf(c.at))}. Saving again replaces it.`);
+  else note($('#d-msg'));
+}
+function compareDay(){
+  const out = $('#d-result'); const book = parseBook(); const logged = Object.keys(dayJobs());
+  if (!book.length){ out.innerHTML = '<p class="muted" style="font-size:14px">Type or paste the job numbers, separated by spaces or new lines.</p>'; return {book, missing: [], extra: []}; }
+  const missing = book.filter(j => !logged.includes(j));
+  const extra = logged.filter(j => !book.includes(j));
+  let h = '';
+  if (missing.length) h += `<div class="note bad"><b>Not keyed in: ${esc(missing.join(', '))}.</b> These jobs used a stock lens but nothing was deducted. Find the job card, then key it in under Take out with the correct date's job number.</div>`;
+  if (extra.length) h += `<div class="note warn"><b>Keyed in but not in your list: ${esc(extra.join(', '))}.</b> Check the job number was typed correctly, or add it to the list if you missed it.</div>`;
+  if (!missing.length && !extra.length) h = `<div class="note good"><b>All ${book.length} job(s) match.</b> Every lens that left the drawer was deducted.</div>`;
+  out.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">${h}</div>`;
+  return {book, missing, extra};
+}
+async function saveDay(closed){
+  const msg = $('#d-msg');
+  if (!needDb(msg)) return;
+  if (!staff()) return note(msg, 'bad', 'Type your name in the <b>Staff</b> box at the top first.');
+  const d = $('#d-date').value; const r = compareDay();
+  const doc = closed ? {date: d, closed: true, staff: staff(), at: Date.now(), book: [], missing: [], extra: []}
+    : {date: d, closed: false, staff: staff(), at: Date.now(), book: r.book, missing: r.missing, extra: r.extra, logged: Object.keys(dayJobs())};
+  try { await S.db.doc('closes/' + d).set(doc); toast(closed ? 'Marked closed' : 'Day check saved'); }
+  catch (e) { note(msg, 'bad', errText(e)); }
+}
+
+/* ---------- HISTORY ---------- */
+const TYPE_LABEL = {out: 'Out', in: 'In', adjust: 'Reversal', count: 'Count'};
+function moveRow(m){
+  const desc = m.type === 'count'
+    ? `<span class="badge b-count">${m.opening ? 'Opening' : 'Count'}</span>${esc(bname(m.brand))} · ${m.counted} powers counted${m.opening ? '' : ` · short ${m.missing}, extra ${m.extra}`}`
+    : `<span class="badge b-${m.type}">${TYPE_LABEL[m.type] || m.type}</span>${m.eye ? `<b>${esc(m.eye)}</b> ` : ''}<span class="pw">${fmt(m.sph)}/${fmt(m.cyl)}</span> ${esc(bname(m.brand))}${m.job ? ` · job <b>${esc(m.job)}</b>` : ''}${m.ref ? ` · ${esc(m.ref)}` : ''}${m.note ? ` · ${esc(m.note)}` : ''}`;
+  const canRev = (m.type === 'out' || m.type === 'in') && !m.reversed && m.id;
+  return `<div class="item${m.reversed ? ' rev' : ''}"><span class="t">${esc(timeOf(m.at))}</span>
+    <span class="d">${desc} <span class="muted">· ${esc(m.staff || '')}</span></span>
+    <span class="q">${m.type === 'count' ? '' : (m.delta > 0 ? '+' : '') + m.delta}${canRev ? ` <button type="button" class="small" data-rev="${esc(m.id)}">Reverse</button>` : ''}</span></div>`;
+}
+function renderHistory(){
+  const b = $('#h-brand').value, t = $('#h-type').value, q = $('#h-q').value.trim().toLowerCase();
+  let all = [...S.moves, ...S.counts.map(c => ({...c, type: 'count'}))].sort((a, z) => z.at - a.at);
+  if (b) all = all.filter(m => m.brand === b);
+  if (t) all = all.filter(m => m.type === t);
+  if (q) all = all.filter(m => [m.job, m.staff, m.ref, m.note, m.sph != null ? fmt(m.sph) + '/' + fmt(m.cyl) : ''].join(' ').toLowerCase().includes(q));
+  $('#h-list').innerHTML = all.length ? all.slice(0, 200).map(moveRow).join('') : '<p class="empty">Nothing matches.</p>';
+  const since = Date.now() - 90 * 864e5;
+  const cs = S.counts.filter(c => !c.opening && c.at >= since);
+  if (!cs.length){ $('#h-var').innerHTML = '<p class="empty">No counts in the last 90 days besides opening stock. Count one lens type each week.</p>'; return; }
+  const agg = {}; const powers = {};
+  cs.forEach(c => {
+    const a = agg[c.brand] ||= {n: 0, missing: 0, extra: 0}; a.n++; a.missing += c.missing || 0; a.extra += c.extra || 0;
+    (c.diffs || []).forEach(x => { if (x.cnt < x.sys){ const k = c.brand + '|' + key(x.s, x.c); powers[k] = (powers[k] || 0) + (x.sys - x.cnt); } });
+  });
+  const top = Object.entries(powers).sort((a, z) => z[1] - a[1]).slice(0, 5);
+  $('#h-var').innerHTML = `<div class="tablewrap"><table class="tbl"><thead><tr><th>Lens</th><th class="n">Counts</th><th class="n">Short</th><th class="n">Extra</th></tr></thead><tbody>${
+    Object.entries(agg).map(([id, a]) => `<tr><td>${esc(bname(id))}</td><td class="n">${a.n}</td><td class="n" style="color:var(${a.missing ? '--bad' : '--muted'})">${a.missing}</td><td class="n">${a.extra}</td></tr>`).join('')}</tbody></table></div>` +
+    (top.length ? `<p class="muted" style="font-size:14px">Powers most often short: ${top.map(([k, n]) => { const [bid, kk] = k.split('|'); const [s, c] = parseKey(kk); return `<span class="pw">${fmt(s)}/${fmt(c)}</span> ${esc(bname(bid))} (${n})`; }).join(', ')}</p>` : '');
+}
+async function reverseMove(id, btn){
+  if (btn.dataset.armed !== '1'){ btn.dataset.armed = '1'; btn.textContent = 'Tap again to confirm'; setTimeout(() => { if (btn.isConnected){ btn.dataset.armed = ''; btn.textContent = 'Reverse'; } }, 4000); return; }
+  const m = S.moves.find(x => x.id === id); if (!m || !S.db) return;
+  if (!staff()) { toast('Type your name in the Staff box first'); return; }
+  btn.disabled = true;
+  try {
+    await queue(async () => {
+      const sys = qty(m.brand, m.sph, m.cyl);
+      await applyDeltas([{brand: m.brand, sph: m.sph, cyl: m.cyl, delta: -m.delta}]);
+      await S.db.collection('moves').add(moveDoc({type: 'adjust', brand: m.brand, sph: m.sph, cyl: m.cyl, eye: m.eye || '', delta: -m.delta, job: m.job || '', ref: m.ref || '', sys, note: `Reversed ${m.type === 'out' ? 'take-out' : 'receive'} of ${prettyDate(m.date)}`}));
+      await S.db.doc('moves/' + id).update({reversed: true});
+    });
+    toast('Reversed');
+  } catch (e) { toast('Could not reverse. ' + (e?.code === 'invalid_argument' ? 'View-only access.' : 'Try again.')); btn.disabled = false; }
+}
+
+/* ---------- SETUP ---------- */
+function renderSetup(){
+  $('#st-brands').innerHTML = S.settings.brands.map((b, i) => `
+    <div class="item" style="grid-template-columns:1fr auto">
+      <input data-bi="${i}" class="st-name" value="${esc(b.name)}" aria-label="Lens type name">
+      <label class="chk"><input type="checkbox" data-bh="${i}" ${b.hidden ? 'checked' : ''}> Hide</label>
+    </div>`).join('');
+  const opt = (from, to, v) => { let h = ''; for (let x = from; x >= to; x -= 25) h += `<option value="${x}" ${x === v ? 'selected' : ''}>${fmt(x)}</option>`; return h; };
+  $('#st-smax').innerHTML = opt(1000, 0, S.settings.sphMax);
+  $('#st-smin').innerHTML = opt(0, -1400, S.settings.sphMin);
+  $('#st-cmin').innerHTML = opt(-50, -600, S.settings.cylMin);
+  $('#st-low').value = S.settings.low;
+}
+async function saveSetup(){
+  const msg = $('#st-msg'); if (!needDb(msg)) return;
+  const brandsNew = S.settings.brands.map((b, i) => ({...b, name: ($(`[data-bi="${i}"]`).value.trim() || b.name), hidden: $(`[data-bh="${i}"]`).checked}));
+  const next = {brands: brandsNew, sphMax: +$('#st-smax').value, sphMin: +$('#st-smin').value, cylMin: +$('#st-cmin').value, low: Math.max(0, parseInt($('#st-low').value, 10) || 0)};
+  try { await S.db.doc('settings/main').set(next); note(msg, 'good', 'Setup saved for everyone.'); }
+  catch (e) { note(msg, 'bad', errText(e)); }
+}
+function addBrand(){
+  const name = $('#st-new').value.trim(); if (!name) return;
+  const id = (name.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'lens').slice(0, 30) + '-' + Date.now().toString(36);
+  S.settings.brands.push({id, name});
+  $('#st-new').value = '';
+  renderSetup();
+  note($('#st-msg'), 'info', `Added <b>${esc(name)}</b>. Press Save setup to keep it.`);
+}
+
+/* ---------- export ---------- */
+function csv(rows){ return rows.map(r => r.map(v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\n'); }
+async function exportFile(kind){
+  const msg = $('#ex-msg');
+  if (!S.dl){ note(msg, 'warn', 'Downloads are not available in this view. Open the page in claude.ai.'); return; }
+  let rows;
+  if (kind === 'stock'){
+    rows = [['Lens', 'SPH', 'CYL', 'Qty']];
+    for (const b of S.settings.brands) for (const [k, q] of Object.entries(S.stock[b.id] || {})){ if (!q) continue; const [s, c] = parseKey(k); rows.push([b.name, fmt(s), fmt(c), q]); }
+  } else {
+    rows = [['Time', 'Type', 'Lens', 'Eye', 'SPH', 'CYL', 'Change', 'Job', 'Supplier ref', 'Staff', 'Note', 'Reversed']];
+    S.moves.forEach(m => rows.push([new Date(m.at).toISOString(), m.type, bname(m.brand), m.eye, fmt(m.sph), fmt(m.cyl), m.delta, m.job, m.ref, m.staff, m.note, m.reversed ? 'yes' : '']));
+  }
+  try { await S.dl.save({filename: `lens-${kind}-${ymd()}.csv`, data: csv(rows)}); note(msg); }
+  catch (e) { if (e?.code !== 'declined') note(msg, 'bad', 'Download failed: ' + esc(e?.message || e?.code)); }
+}
+
+/* ---------- live render ---------- */
+function renderLive(){
+  switch (S.view){
+    case 'stock': renderStock(); break;
+    case 'take-out': renderOutHints(); renderOutToday(); break;
+    case 'receive': renderInHint(); renderInRecent(); break;
+    case 'count': refreshCountPlaceholders(); break;
+    case 'day-check': renderDay(); break;
+    case 'history': renderHistory(); break;
+  }
+}
+
+/* ---------- events ---------- */
+function wire(){
+  $('#staff').value = LS.get('staff', '');
+  $('#staff').addEventListener('input', () => LS.set('staff', staff()));
+  $('#s-hide').checked = LS.get('hide', false);
+  $('#s-hide').addEventListener('change', () => { LS.set('hide', $('#s-hide').checked); renderStock(); });
+  $('#s-brands').addEventListener('click', e => { const b = e.target.closest('[data-b]'); if (!b) return; S.brand = b.dataset.b; LS.set('brand', S.brand); renderStock(); });
+  $('#s-grid').addEventListener('click', e => { const c = e.target.closest('.cell'); if (c) openSheet(curBrand(), +c.dataset.s, +c.dataset.c); });
+  $('#reminder').addEventListener('click', e => { const a = e.target.closest('[data-date]'); if (a){ $('#d-date').value = a.dataset.date; subscribeDay(); } });
+  $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
+
+  $('#f-out').addEventListener('submit', submitOut);
+  $('#f-out').addEventListener('change', () => { resetOutWarn(); syncEyes(); });
+  $('#o-job').addEventListener('input', resetOutWarn);
+  $('#o-copy').addEventListener('click', () => { $('#o-l-on').checked = true; $('#o-l-sph').value = $('#o-r-sph').value; $('#o-l-cyl').value = $('#o-r-cyl').value; resetOutWarn(); syncEyes(); });
+
+  $('#f-in').addEventListener('submit', submitIn);
+  $('#f-in').addEventListener('input', renderInHint);
+  $('#f-in').addEventListener('change', renderInHint);
+
+  $('#c-brand').addEventListener('change', buildCountGrid);
+  $('#c-show').addEventListener('change', buildCountGrid);
+  $('#c-full').addEventListener('change', () => { $('#c-result').innerHTML = ''; });
+  $('#c-grid').addEventListener('input', e => {
+    const i = e.target.closest('.ci'); if (!i) return;
+    i.value = i.value.replace(/[^0-9]/g, '');
+    i.classList.toggle('filled', i.value !== '');
+    const b = $('#c-brand').value; const d = draftOf(b);
+    if (i.value === '') delete d[i.dataset.k]; else d[i.dataset.k] = i.value;
+    LS.set('count:' + b, d);
+    $('#c-result').innerHTML = '';
+  });
+  $('#c-grid').addEventListener('keydown', e => {
+    const i = e.target.closest('.ci'); if (!i || e.key !== 'Enter') return;
+    e.preventDefault(); const all = $$('#c-grid .ci'); const n = all[all.indexOf(i) + 1]; if (n) n.focus();
+  });
+  $('#c-review').addEventListener('click', reviewCount);
+  $('#c-clear').addEventListener('click', e => {
+    const btn = e.currentTarget;
+    if (btn.dataset.armed !== '1'){ btn.dataset.armed = '1'; btn.textContent = 'Tap again to clear'; setTimeout(() => { btn.dataset.armed = ''; btn.textContent = 'Clear what I typed'; }, 4000); return; }
+    btn.dataset.armed = ''; btn.textContent = 'Clear what I typed';
+    LS.set('count:' + $('#c-brand').value, {}); buildCountGrid();
+  });
+
+  $('#d-date').value = ymd(); $('#d-date').max = ymd();
+  $('#d-date').addEventListener('change', subscribeDay);
+  $('#d-book').addEventListener('input', compareDay);
+  $('#d-save').addEventListener('click', () => saveDay(false));
+  $('#d-closed').addEventListener('click', () => saveDay(true));
+
+  ['#h-brand', '#h-type'].forEach(s => $(s).addEventListener('change', renderHistory));
+  $('#h-q').addEventListener('input', renderHistory);
+  document.addEventListener('click', e => { const r = e.target.closest('[data-rev]'); if (r) reverseMove(r.dataset.rev, r); });
+
+  $('#st-add').addEventListener('click', addBrand);
+  $('#st-save').addEventListener('click', saveSetup);
+  $('#ex-stock').addEventListener('click', () => exportFile('stock'));
+  $('#ex-hist').addEventListener('click', () => exportFile('hist'));
+  window.addEventListener('hashchange', route);
+}
+
+/* ---------- boot ---------- */
+async function boot(){
+  wire(); onSettings(); syncEyes(); route();
+  if (!window.claude || typeof window.claude.use !== 'function'){
+    setSync('off', 'Offline preview');
+    return;
+  }
+  const slow = setTimeout(() => setSync('slow', 'Still connecting'), 10000);
+  window.claude.use('downloads').then(d => { S.dl = d; }).catch(() => {});
+  const db = await window.claude.use('db').catch(() => null);
+  if (!db){ clearTimeout(slow); setSync('off', 'Sign in to load stock'); return; }
+  S.db = db;
+  const fail = e => { clearTimeout(slow); setSync('off', e?.code === 'revoked' ? 'Access removed' : 'Connection lost, reload'); };
+  db.doc('settings/main').onSnapshot(s => {
+    S.settings = s.exists ? {...structuredClone(DEFAULTS), ...s.data(), brands: structuredClone(s.data().brands || DEFAULTS.brands)} : structuredClone(DEFAULTS);
+    onSettings();
+  }, fail);
+  db.collection('stock').onSnapshot(q => {
+    S.stock = {}; S.stockDocs = new Set();
+    q.docs.forEach(d => { S.stock[d.id] = {...(d.data().qty || {})}; S.stockDocs.add(d.id); });
+    if (!q.metadata.fromCache){ clearTimeout(slow); setSync('ok', 'Live'); S.ready = true; }
+    renderLive();
+  }, fail);
+  db.collection('moves').orderBy('at', 'desc').limit(500).onSnapshot(q => { S.moves = q.docs.map(d => ({id: d.id, ...d.data()})); renderLive(); }, fail);
+  db.collection('counts').orderBy('at', 'desc').limit(100).onSnapshot(q => { S.counts = q.docs.map(d => ({id: d.id, ...d.data()})); renderLive(); }, fail);
+  db.collection('closes').orderBy('date', 'desc').limit(60).onSnapshot(q => { S.closes = {}; q.docs.forEach(d => { S.closes[d.id] = d.data(); }); renderLive(); }, fail);
+  subscribeDay();
+}
+boot();
+})();
+</script>
